@@ -18,8 +18,12 @@ Unlike a chroot or proot, **Pivot-Android** utilizes `pivot_root` to swap the An
 ## Prerequisites
 
 1.  **Root Privileges:** **Mandatory.** Your device must be rooted (e.g., via Magisk) to allow for namespace manipulation, loop device mounting, and hardware node access.
-2.  **Termux:** The recommended terminal environment for triggering the initialization during the beta phase.
-3.  **Namespace Utilities:** `nsenter` is required to transition to the global mount namespace.
+2.  **BusyBox (Android NDK):** You must install the **Busybox for Android NDK** Magisk module by **osm0sis @ xda-developers**. This provides the necessary command-line utilities for the pivot process.
+    * **Recommended Method:** Use the **MMRL** (Magisk Module Repo Loader) app on your rooted device.
+    * **Setup:** Add the **"Googlers Magisk Repo"** within MMRL, then search for and install the Busybox for Android NDK zip.
+    * *Note:* While the zip can be found elsewhere, MMRL is the verified method for this workflow.
+3.  **Termux:** The recommended terminal environment for triggering the initialization during the beta phase.
+4.  **Namespace Utilities:** `nsenter` is required to transition to the global mount namespace.
 
 ---
 
