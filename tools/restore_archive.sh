@@ -130,8 +130,7 @@ log "Extraction completed"
 
 # --- Unmount and detach -----------------------------------------------------
 cd /
-umount "$MOUNT_POINT" || error_exit "Unmount failed"
-losetup -d "$LOOP_DEV" && log "Detached $LOOP_DEV"
+umount -d "$MOUNT_POINT" || error_exit "Unmount failed"
 setenforce 1
 
 log "Restore finished. Image is ready at $IMAGE"

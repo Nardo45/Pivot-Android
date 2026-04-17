@@ -17,8 +17,8 @@ Unlike a chroot or proot, **Pivot-Android** utilizes `pivot_root` to swap the An
 
 ## Prerequisites
 
-1.  **Root Privileges:** Necessary for namespace manipulation and mount operations.
-2.  **Termux:** The recommended terminal environment for triggering the initialization.
+1.  **Root Privileges:** **Mandatory.** Your device must be rooted (e.g., via Magisk) to allow for namespace manipulation, loop device mounting, and hardware node access.
+2.  **Termux:** The recommended terminal environment for triggering the initialization during the beta phase.
 3.  **Namespace Utilities:** `nsenter` is required to transition to the global mount namespace.
 
 ---
@@ -29,9 +29,9 @@ To maintain modularity and prepare for specific device support, the project is o
 
 ```text
 Pivot-Android/
-├── core/                   # Universal pivot logic and binaries
-│   ├── pvroot.sh           # Main execution engine
-│   ├── set_rprivate.c      # Source for mount propagation fixes
+├── core/                    # Universal pivot logic and binaries
+│   ├── pvroot.sh            # Main execution engine
+│   ├── set_rprivate.c       # Source for mount propagation fixes
 |   └bin/
 │     └── set_rprivate      # Compiled binary for mount management
 ├── tools/                  # Image and rootfs management utilities
@@ -45,52 +45,94 @@ Pivot-Android/
 
 ---
 
-## Installation and Setup
+## Installation and Deployment
 
-Manual setup of the rootfs image is discouraged. Instead, use the provided `restore_archive.sh` tool to handle image creation, formatting, and extraction.
+### 1. Building the Rootfs (Host Side)
+Before deploying to the device, you must generate an `aarch64` Alpine Linux rootfs. This process uses Podman and QEMU emulation on an x86_64 host to ensure a clean, architecture-correct environment.
 
-### Initializing the Rootfs Image
-
-The installation script utilizes `truncate` to create **sparse files**. This allows you to allocate a large virtual disk size (e.g., 50 GiB) without immediately consuming that space on your device's physical storage. The image file will only occupy the actual disk space used by the data contained within it.
-
-**Usage:**
+**Build and Export:**
 ```bash
-./restore_archive.sh [OPTIONS] <TARBALL> [SIZE_MB]
+# Build the image using the provided Containerfile
+podman build --platform linux/arm64 -t pivot-build-temp .
+
+# Create a temporary container instance and export the rootfs
+CONTAINER_ID=$(podman create pivot-build-temp)
+podman export $CONTAINER_ID | gzip > alpine-rootfs-aarch64.tar.gz
+
+# Cleanup
+podman rm $CONTAINER_ID
 ```
 
-**Options:**
-* `-i IMAGE`: Path to the image file (Default: `/data/local/pivot/alpine_aarch64.img`).
-* `-m MOUNTPOINT`: Mount point for the image (Default: `/data/local/pivot/alpine`).
-* `-s SIZE_MB`: Desired virtual size in MiB.
+### 2. Automated Deployment via `install.sh`
+The project includes an `install.sh` script to automate the transfer of binaries and scripts to the device via ADB. 
 
-**Example (Creating a 50 GiB virtual image):**
+**Note on Permissions:** This script executes `adb root` to push files directly into the Termux private data directory. **A rooted Android device is required** because standard user permissions do not allow for the high-level mount and namespace operations performed by this framework.
+
 ```bash
-# 51200 MiB = 50 GiB
-./restore_archive.sh -s 51200 /sdcard/alpine-rootfs.tar.gz
+# Run from the project root on your host machine
+chmod +x install.sh
+./install.sh
 ```
+
+### 3. Initializing the Rootfs Image (Device Side)
+The `restore_archive.sh` tool handles image creation and extraction. It utilizes **sparse files** via `truncate`, allowing you to allocate a large virtual disk (e.g., 20 GiB) without immediately consuming physical storage.
+
+**Example (Creating a 20 GiB image):**
+```bash
+# Run via ADB or within Termux
+cd /data/data/com.termux/files/home
+./restore_archive.sh alpine-rootfs-aarch64.tar.gz 20480
+```
+*Tip: To calculate MiB for a specific size in GiB, multiply your desired GiB by 1024.*
 
 ---
 
 ## Execution: Performing the Userspace Pivot
 
-To successfully execute a userspace takeover, `pvroot.sh` must be run within the global mount namespace. Failure to do so will result in the application that ran the command to enter a weird state where it's sandbox has pivotted to the image.
+To successfully execute a userspace takeover, `pvroot.sh` must be run within the global mount namespace. Execute the following command:
 
-Execute the following command from within Termux:
-
+**From Termux (Non-root shell):**
 ```bash
 su -c "nsenter --mount=/proc/1/ns/mnt sh /data/data/com.termux/files/home/pvroot.sh"
+```
+
+**From ADB Shell:**
+```bash
+cd /data/data/com.termux/files/home
+sh pvroot.sh
 ```
 
 Upon success, the Android userspace will be moved to `/android_root` and you will be dropped into a standard Linux shell. Wi-Fi and SSH services will be initialized automatically if the image is configured correctly.
 
 ---
 
+## Debugging and ADB Persistence
+
+By default, the framework attempts to transition fully into the Linux userspace, which involves backgrounding setup tasks that will terminate existing Android-side processes (including `adbd`). 
+
+### Using the `--adb` Flag
+If you are troubleshooting a new device or testing network bring-up, you can run the pivot script with the `--adb` flag:
+
+```bash
+sh pvroot.sh --adb
+```
+
+**Why use this?**
+* **Process Retention:** This prevents the execution of `alpine-setup.sh`. By doing so, the current ADB daemon (`adbd`) remains resident in memory despite the filesystem swap.
+* **Persistent Connection:** You will maintain your active shell into the Alpine environment through your existing ADB session even after the pivot.
+
+**Critical Limitations:**
+* **Session Fragility:** The ADB connection is held by processes currently in RAM. If you terminate the session or disconnect the cable, the ADB daemon will likely fail to restart in the new userspace. You will be forced to reboot the hardware to regain access.
+* **Manual Setup:** Since `alpine-setup.sh` is skipped, you must manually configure networking or services from within the Alpine shell.
+
+---
+
 ## Script Reference
 
-* `pvroot.sh`: The core engine that resolves mount propagation, binds essential hardware nodes, and executes `pivot_root`.
-* `mount_alpine.sh` / `umount_alpine.sh`: Standard utilities for mounting the image file for offline maintenance.
-* `create_rootfs_archive.sh`: Generates a portable `.tar.gz` backup of the existing Alpine environment.
-* `set_rprivate.c`: A C utility designed to set the mount propagation of the root filesystem to private, a mandatory step for the `pivot_root` syscall.
+* `pvroot.sh`: The core engine that resolves mount propagation, binds hardware nodes, and executes `pivot_root`.
+* `restore_archive.sh`: Handles the creation, formatting, and extraction of the rootfs image.
+* `install.sh`: Host-side script for deploying the framework to a rooted Android device via ADB.
+* `set_rprivate`: A compiled utility used to set the root filesystem mount propagation to private, which is a kernel requirement for the `pivot_root` syscall.
 
 ---
 
@@ -104,4 +146,4 @@ The objective of this project is to evolve from userspace takeovers into a sophi
 3.  **Kernel B (Mainline/Target):** The system loads a secondary kernel, either a mainline Linux kernel or a modified downstream kernel, and transitions execution without a hardware reboot.
 
 ### Implications for Development
-This framework aims to bridge the gap between experimental mobile Linux development (such as **postmarketOS**) and daily-driver stability. By providing a "safe" path to test mainline kernels, developers can debug hardware support on experimental kernels while maintaining the ability to revert to a stable Android environment with a simple reboot. This positions the Android device as a versatile platform capable of serving as a mobile workstation for academic, professional, and entertainment purposes.
+This framework aims to bridge the gap between experimental mobile Linux development (such as postmarketOS) and daily-driver stability. By providing a "safe" path to test mainline kernels, developers can debug hardware support while maintaining the ability to revert to a stable Android environment with a simple reboot. This positions the Android device as a versatile platform capable of serving as a mobile workstation for academic, professional, and entertainment purposes.
