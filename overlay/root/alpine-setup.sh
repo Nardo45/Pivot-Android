@@ -1,8 +1,21 @@
 #!/bin/sh
-# alpine-setup.sh – runs after pivot, configures Wi‑Fi, starts SSH, then cleans up Android
-# and remounts recursively
+# alpine-setup.sh – runs after pivot, configures Wi‑Fi, starts SSH
+# Flags: -c (run cleanup), -r (run safe rebind)
 
 set -e
+
+# Default values (disabled unless flag is passed)
+RUN_CLEANUP=false
+RUN_REBIND=false
+
+# Parse flags
+while getopts "cr" opt; do
+  case $opt in
+    c) RUN_CLEANUP=true ;;
+    r) RUN_REBIND=true ;;
+    *) echo "Usage: $0 [-c] [-r]" >&2; exit 1 ;;
+  esac
+done
 
 echo "=== Alpine setup starting ==="
 
@@ -16,13 +29,12 @@ else
     echo "ERROR: /root/wifi-run.sh not found or not executable"
 fi
 
-# 3. Make OpenRC happy (even though it's not PID 1)
+# 3. Make OpenRC happy
 mkdir -p /run/openrc
 touch /run/openrc/softlevel
 
 # 4. Start SSH server
 echo "Starting sshd..."
-# Try OpenRC service first, fall back to direct binary
 if rc-service sshd start 2>/dev/null; then
     echo "sshd started via rc-service"
 else
@@ -44,35 +56,38 @@ while ! netstat -ltn | grep -q ":22 "; do
 done
 echo "sshd is live."
 
-# 5. Run cleanup script to kill remaining Android processes
-if [ -x /root/cleanup-android.sh ]; then
-    echo "Running cleanup-android.sh..."
-    /root/cleanup-android.sh
+# 5. Conditional cleanup logic
+if [ "$RUN_CLEANUP" = true ]; then
+    if [ -x /root/cleanup-android.sh ]; then
+        echo "Running cleanup-android.sh..."
+        /root/cleanup-android.sh
+    else
+        echo "cleanup-android.sh not found, skipping"
+    fi
 else
-    echo "cleanup-android.sh not found, skipping"
+    echo "Cleanup flag (-c) not set, skipping Android process cleanup"
 fi
 
-# 6. Safe Rebind Logic
-echo "Checking for populated Android mount sources..."
+# 6. Conditional Safe Rebind Logic
+if [ "$RUN_REBIND" = true ]; then
+    echo "Checking for populated Android mount sources..."
+    for target in dev proc sys; do
+        SRC="/android_root/$target"
+        DEST="/$target"
 
-for target in dev proc sys vendor; do
-    SRC="/android_root/$target"
-    DEST="/$target"
-
-    # Check if the source directory has more than just . and ..
-    if [ "$(ls -A "$SRC" 2>/dev/null)" ]; then
-        echo "Source $SRC is populated. Safe to rbind."
-        mount --rbind "$SRC" "$DEST" 2>/dev/null || echo "Failed to bind $DEST"
-    else
-        echo "WARNING: $SRC is empty! Skipping rbind to prevent system breakage."
-        
-        # Fallback: If sys/proc are empty, mount fresh instances 
-        # to ensure Alpine has kernel interface access (CPU/Cgroups)
-        case "$target" in
-            proc) mount -t proc proc /proc ;;
-            sys)  mount -t sysfs sysfs /sys ;;
-        esac
-    fi
-done
+        if [ "$(ls -A "$SRC" 2>/dev/null)" ]; then
+            echo "Source $SRC is populated. Safe to rbind."
+            mount --rbind "$SRC" "$DEST" 2>/dev/null || echo "Failed to bind $DEST"
+        else
+            echo "WARNING: $SRC is empty! Skipping rbind."
+            case "$target" in
+                proc) mount -t proc proc /proc ;;
+                sys)  mount -t sysfs sysfs /sys ;;
+            esac
+        fi
+    done
+else
+    echo "Rebind flag (-r) not set, skipping Android mount rebinding"
+fi
 
 echo "=== Alpine setup complete ==="

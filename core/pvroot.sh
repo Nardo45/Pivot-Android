@@ -43,11 +43,10 @@ fi
 
 # 3. Hardware and Kernel Node Bridging
 # Bind essential kernel filesystems into the target root tree before pivoting.
-mkdir -p "$MNT/proc" "$MNT/sys" "$MNT/vendor" "$MNT/dev" "$MNT/lib/firmware/qcom"
+mkdir -p "$MNT/proc" "$MNT/sys" "$MNT/dev" "$MNT/lib/firmware/qcom"
 
 mount --bind /proc "$MNT/proc"
 mount --bind /sys "$MNT/sys"
-mount --bind /vendor "$MNT/vendor"
 
 # Bind only the GPU firmware blob directory into the place the kernel expects
 mount --bind /vendor/firmware_mnt/image "$MNT/lib/firmware/qcom"
@@ -104,7 +103,7 @@ exec /bin/sh -c "
         # setsid: breaks the bond with the ADB terminal/session
         # &: puts it in the background immediately
         # >/tmp/start.log 2>&1: prevents background noise from cluttering your shell
-        setsid /root/alpine-setup.sh >/tmp/start.log 2>&1 &
+        setsid /root/alpine-setup.sh -c -r >/tmp/start.log 2>&1 &
         echo 'Alpine background setup initialized (Network/SSH)...'
     else
         echo 'alpine-setup.sh not found. Proceeding with manual configuration.'

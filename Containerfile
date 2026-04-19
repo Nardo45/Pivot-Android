@@ -13,4 +13,5 @@ RUN apk add --no-cache \
 COPY overlay/ /
 
 # Ensure your scripts are executable
-RUN chmod +x /usr/local/bin/poweroff /usr/local/bin/reboot
+RUN chmod +x /usr/local/bin/poweroff /usr/local/bin/reboot && \
+    chmod u+s /bin/su
