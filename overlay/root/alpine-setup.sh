@@ -36,7 +36,9 @@ touch /run/openrc/softlevel
 # 4. Start SSH server
 echo "Starting sshd..."
 if rc-service sshd start 2>/dev/null; then
-    echo "sshd started via rc-service"
+    echo "sshd started via rc-service sshd"
+elif rc-service ssh start 2>/dev/null; then
+    echo "sshd started via rc-service ssh"
 else
     echo "rc-service failed, trying direct /usr/sbin/sshd"
     /usr/sbin/sshd
