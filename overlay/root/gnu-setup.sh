@@ -1,5 +1,5 @@
 #!/bin/sh
-# alpine-setup.sh – runs after pivot, configures Wi‑Fi, starts SSH
+# runs after pivot, configures Wi‑Fi, starts SSH
 # Flags: -c (run cleanup), -r (run safe rebind)
 
 set -e
@@ -17,7 +17,7 @@ while getopts "cr" opt; do
   esac
 done
 
-echo "=== Alpine setup starting ==="
+echo "=== Distro setup starting ==="
 
 # 1. Try to obtain native WiFi Controls
 echo "Configuring Wi‑Fi..."
@@ -92,4 +92,4 @@ else
     echo "Rebind flag (-r) not set, skipping Android mount rebinding"
 fi
 
-echo "=== Alpine setup complete ==="
+echo "=== Distro setup complete ==="

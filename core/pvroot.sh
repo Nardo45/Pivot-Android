@@ -71,7 +71,7 @@ fi
 # 5. Handover Execution
 # Transition to the new root environment and initialize basic Linux VFS.
 exec /bin/sh -c "
-    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/libexec
     export HOME=/root
     export TERM=xterm-256color
 
@@ -93,22 +93,22 @@ exec /bin/sh -c "
     mount -t tmpfs tmpfs /run
     mount -t tmpfs tmpfs /tmp
 
-    # --- Alpine Initialization Logic ---
+    # --- Initialization Logic ---
     if [ \"$DEBUG_ADB\" = true ]; then
         echo '--- DEBUG MODE ACTIVE ---'
         echo 'ADB flag detected. Skipping automated setup to maintain host process state.'
         echo 'WARNING: Do not disconnect this session until debugging is complete.'
-    elif [ -x /root/alpine-setup.sh ]; then
+    elif [ -x /root/gnu-setup.sh ]; then
         # Break the bond with the parent session to allow background service bring-up
         # setsid: breaks the bond with the ADB terminal/session
         # &: puts it in the background immediately
         # >/tmp/start.log 2>&1: prevents background noise from cluttering your shell
-        setsid /root/alpine-setup.sh -c -r >/tmp/start.log 2>&1 &
-        echo 'Alpine background setup initialized (Network/SSH)...'
+        setsid /root/gnu-setup.sh -c -r >/tmp/start.log 2>&1 &
+        echo 'Background setup initialized (Network/SSH)...'
     else
-        echo 'alpine-setup.sh not found. Proceeding with manual configuration.'
+        echo 'gnu-setup.sh not found. Proceeding with manual configuration.'
     fi
 
-    # Drop into the native Alpine shell
+    # Drop into the native shell
     exec /bin/sh -l
 "

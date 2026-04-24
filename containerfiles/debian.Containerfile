@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Prevent OpenRC from ever being removed by apt
+RUN apt-mark hold openrc
+
 # Run the command from the OpenRC warning
 RUN for file in /etc/rc0.d/K*; do s=$(basename $(readlink "$file")); /etc/init.d/"$s" stop 2>/dev/null || true; done
 
