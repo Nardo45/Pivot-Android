@@ -97,7 +97,7 @@ load_or_collect_user_config() {
                     3) read -p "  Desired Static IP: " USER_IP ;;
                     4) read -p "  Gateway IP       : " USER_GW ;;
                     5) read -p "  New Linux User   : " NEW_USER ;;
-                    6) read_secret NEW_PASS "  Password for $NEW_USER: " ;;
+                    6) read_secret NEW_PASS "  Password for $NEW_USER : " ;;
                     *) echo "  Unknown field '$field', skipping." ;;
                 esac
             done

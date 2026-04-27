@@ -92,4 +92,11 @@ else
     echo "Rebind flag (-r) not set, skipping Android mount rebinding"
 fi
 
+# 7. Set permissions for DRM and Input nodes and setup shared memory
+echo "Configuring device permissions and shared memory..."
+chmod 666 /dev/dri/card0 /dev/dri/renderD128
+chmod 666 /dev/input/event*
+mkdir -p /dev/shm
+mount -t tmpfs tmpfs /dev/shm
+
 echo "=== Distro setup complete ==="

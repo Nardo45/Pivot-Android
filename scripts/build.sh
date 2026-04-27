@@ -19,14 +19,17 @@ build_and_deploy() {
     cat <<EOF > .temp_dockerfile
 FROM $PODMAN_BASE_TAG
 ENV PIVOT_USER=$NEW_USER
+
 COPY overlay/root/gnu-setup.sh /root/gnu-setup.sh
 COPY overlay/root/wifi-run.sh /root/wifi-run.sh
+
 RUN chmod +x /root/*.sh && \\
     sed -i 's|SSID|"$USER_SSID"|g' /root/gnu-setup.sh && \\
     sed -i 's|PASS|"$USER_PASS"|g' /root/gnu-setup.sh && \\
     sed -i 's|IP_ADDRESS|$USER_IP|g' /root/gnu-setup.sh && \\
     sed -i 's|GATEWAY_IP|$USER_GW|g' /root/gnu-setup.sh && \\
     $RESOLVED_USER_ADD && \\
+    usermod -aG sudo $NEW_USER && \\
     echo "$NEW_USER:$NEW_PASS" | chpasswd && \\
     echo "root:$NEW_PASS" | chpasswd
 EOF

@@ -1,0 +1,63 @@
+diff --git a/containerfiles/debian.Containerfile b/containerfiles/debian.Containerfile
+index ffb83a6..f799068 100644
+--- a/containerfiles/debian.Containerfile
++++ b/containerfiles/debian.Containerfile
+@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+     iproute2 \
+     procps \
+     util-linux \
++    sudo \
+     && apt-get clean \
+     && rm -rf /var/lib/apt/lists/*
+ 
+diff --git a/overlay/root/gnu-setup.sh b/overlay/root/gnu-setup.sh
+index 3f3f60e..7407030 100755
+--- a/overlay/root/gnu-setup.sh
++++ b/overlay/root/gnu-setup.sh
+@@ -92,4 +92,11 @@ else
+     echo "Rebind flag (-r) not set, skipping Android mount rebinding"
+ fi
+ 
++# 7. Set permissions for DRM and Input nodes and setup shared memory
++echo "Configuring device permissions and shared memory..."
++chmod 666 /dev/dri/card0 /dev/dri/renderD128
++chmod 666 /dev/input/event*
++mkdir -p /dev/shm
++mount -t tmpfs tmpfs /dev/shm
++
+ echo "=== Distro setup complete ==="
+diff --git a/scripts/build.sh b/scripts/build.sh
+index 3ad44da..d36935c 100755
+--- a/scripts/build.sh
++++ b/scripts/build.sh
+@@ -19,14 +19,17 @@ build_and_deploy() {
+     cat <<EOF > .temp_dockerfile
+ FROM $PODMAN_BASE_TAG
+ ENV PIVOT_USER=$NEW_USER
++
+ COPY overlay/root/gnu-setup.sh /root/gnu-setup.sh
+ COPY overlay/root/wifi-run.sh /root/wifi-run.sh
++
+ RUN chmod +x /root/*.sh && \\
+     sed -i 's|SSID|"$USER_SSID"|g' /root/gnu-setup.sh && \\
+     sed -i 's|PASS|"$USER_PASS"|g' /root/gnu-setup.sh && \\
+     sed -i 's|IP_ADDRESS|$USER_IP|g' /root/gnu-setup.sh && \\
+     sed -i 's|GATEWAY_IP|$USER_GW|g' /root/gnu-setup.sh && \\
+     $RESOLVED_USER_ADD && \\
++    usermod -aG sudo $NEW_USER && \\
+     echo "$NEW_USER:$NEW_PASS" | chpasswd && \\
+     echo "root:$NEW_PASS" | chpasswd
+ EOF
+diff --git a/scripts/user_config.sh b/scripts/user_config.sh
+index edb62b9..2423c45 100755
+--- a/scripts/user_config.sh
++++ b/scripts/user_config.sh
+@@ -97,7 +97,7 @@ load_or_collect_user_config() {
+                     3) read -p "  Desired Static IP: " USER_IP ;;
+                     4) read -p "  Gateway IP       : " USER_GW ;;
+                     5) read -p "  New Linux User   : " NEW_USER ;;
+-                    6) read_secret NEW_PASS "  Password for $NEW_USER: " ;;
++                    6) read_secret NEW_PASS "  Password for $NEW_USER : " ;;
+                     *) echo "  Unknown field '$field', skipping." ;;
+                 esac
+             done
